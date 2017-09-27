@@ -65,6 +65,7 @@ cc_library(
         "//tensorflow_serving/core:source",
         "//tensorflow_serving/core:source_adapter",
         "//tensorflow_serving/core:storage_path",
+	"//tensorflow_serving/core:metrics_manager",
         "//tensorflow_serving/resources:resource_values",
         "//tensorflow_serving/servables/tensorflow:saved_model_bundle_source_adapter",
         "//tensorflow_serving/servables/tensorflow:session_bundle_source_adapter",
@@ -140,6 +141,7 @@ cc_binary(
         "//tensorflow_serving/apis:prediction_service_proto",
         "//tensorflow_serving/config:model_server_config_proto",
         "//tensorflow_serving/core:availability_preserving_policy",
+	"//tensorflow_serving/core:metrics_manager",
         "@grpc//:grpc++_unsecure",
     ] + TENSORFLOW_DEPS + SUPPORTED_TENSORFLOW_OPS,
 )

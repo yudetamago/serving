@@ -482,6 +482,82 @@ cc_test(
 )
 
 cc_library(
+    name = "metrics_collector",
+    hdrs = ["metrics_collector.h"],
+	visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+		"@org_tensorflow//tensorflow/core:lib",
+    ],
+)
+
+cc_test(
+    name = "metrics_collector_test",
+    srcs = ["metrics_collector_test.cc"],
+    deps = [
+		":metrics_collector", 
+		"//tensorflow_serving/core/test_util:test_main",
+    ],
+)
+
+cc_library(
+    name = "metrics_manager",
+    srcs = ["predict_metrics_manager.cc"],
+    hdrs = ["metrics_manager.h", "predict_metrics_manager.h"],
+	visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+		":metrics_collector",
+		":metrics_logger",
+		":metrics_syslog",
+		"@org_tensorflow//tensorflow/core:lib",
+		"//tensorflow_serving/core:servable_state",
+		"//tensorflow_serving/core:servable_state_monitor",
+        "//tensorflow_serving/servables/tensorflow:session_bundle_source_adapter_proto",
+		"//tensorflow_serving/resources:resources_proto",
+    ],
+)
+
+cc_test(
+    name = "predict_metrics_manager_test",
+    srcs = ["predict_metrics_manager_test.cc"],
+    deps = [
+		":metrics_manager", 
+		":metrics_logger", 
+		"//tensorflow_serving/core/test_util:test_main",
+        "@org_tensorflow//tensorflow/contrib/batching/test_util:fake_clock_env",
+    ],
+)
+
+cc_library(
+    name = "metrics_logger",
+    srcs = ["metrics_logger.cc"],
+    hdrs = ["metrics_logger.h", "metrics_collector.h"],
+    deps = [
+			"@org_tensorflow//tensorflow/core:lib",
+ 			"//tensorflow_serving/resources:resources_proto",
+			"//tensorflow_serving/core:servable_state",
+			"//tensorflow_serving/core:servable_state_monitor",
+    	
+    ],
+)
+
+cc_library(
+    name = "metrics_syslog",
+    srcs = ["metrics_syslog.cc"],
+    hdrs = ["metrics_syslog.h",  "metrics_collector.h"],
+    deps = [ 
+			"@org_tensorflow//tensorflow/core:lib",
+ 			"//tensorflow_serving/resources:resources_proto",
+    		"//tensorflow_serving/core:servable_state",
+			"//tensorflow_serving/core:servable_state_monitor",
+    ],
+)
+
+
+cc_library(
     name = "aspired_versions_manager",
     srcs = ["aspired_versions_manager.cc"],
     hdrs = ["aspired_versions_manager.h"],

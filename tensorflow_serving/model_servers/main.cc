@@ -319,6 +319,9 @@ int main(int argc, char** argv) {
   tensorflow::int64 tensorflow_session_parallelism = 0;
   string platform_config_file = "";
   string model_config_file;
+  tensorflow::int32 metric_summary_wait_seconds = 30;
+  bool enable_metric_summary = false;
+  string target_publishing_metric = "logger";
   std::vector<tensorflow::Flag> flag_list = {
       tensorflow::Flag("port", &port, "port to listen on"),
       tensorflow::Flag("enable_batching", &enable_batching, "enable batching"),
@@ -370,8 +373,13 @@ int main(int argc, char** argv) {
           "starts, If 0.0, Tensorflow will automatically select a value."),
       tensorflow::Flag("saved_model_tags", &saved_model_tags,
                        "Comma-separated set of tags corresponding to the meta "
-                       "graph def to load from SavedModel.")};
-
+                       "graph def to load from SavedModel."),
+      tensorflow::Flag("metric_implementation", &target_publishing_metric,
+                       "Defines the implementation of the metrics to be used (logger, syslog ...)."),
+      tensorflow::Flag("enable_metric_summary", &enable_metric_summary,
+                       "Enable summary for metrics, launch an async task."),
+      tensorflow::Flag("metric_summary_wait_seconds", &metric_summary_wait_seconds,
+                       "Interval in seconds between each summary of metrics.(Ignored if --enable_metric_summary=false)")};
   string usage = tensorflow::Flags::Usage(argv[0], flag_list);
   const bool parse_result = tensorflow::Flags::Parse(&argc, argv, flag_list);
   if (!parse_result || (model_base_path.empty() && model_config_file.empty())) {
@@ -439,6 +447,9 @@ int main(int argc, char** argv) {
       std::unique_ptr<AspiredVersionPolicy>(new AvailabilityPreservingPolicy);
   options.file_system_poll_wait_seconds = file_system_poll_wait_seconds;
   options.flush_filesystem_caches = flush_filesystem_caches;
+  options.enable_metric_summary = enable_metric_summary;
+  options.metric_summary_wait_seconds = metric_summary_wait_seconds;
+  options.target_publishing_metric = target_publishing_metric;
 
   std::unique_ptr<ServerCore> core;
   TF_CHECK_OK(ServerCore::Create(std::move(options), &core));

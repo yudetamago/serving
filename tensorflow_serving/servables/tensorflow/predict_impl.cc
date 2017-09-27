@@ -20,6 +20,7 @@ limitations under the License.
 #include <string>
 #include <utility>
 #include <vector>
+#include <chrono>
 
 #include "tensorflow/cc/saved_model/loader.h"
 #include "tensorflow/cc/saved_model/signature_constants.h"
@@ -276,19 +277,35 @@ Status SavedModelPredict(const RunOptions& run_options, ServerCore* core,
 }
 
 }  // namespace
-
+std::atomic<long> predictionCount;
 Status TensorflowPredictor::Predict(const RunOptions& run_options,
                                     ServerCore* core,
                                     const PredictRequest& request,
                                     PredictResponse* response) {
+  tensorflow::Status status;
+  const tensorflow::uint64 predict_start_time = tensorflow::Env::Default()->NowMicros();
+
   if (!request.has_model_spec()) {
     return tensorflow::Status(tensorflow::error::INVALID_ARGUMENT,
-                              "Missing ModelSpec");
+                                "Missing ModelSpec");
+  } else {
+    if (use_saved_model_) {
+      status = SavedModelPredict(run_options, core, request, response);
+    } else {
+      status = SessionBundlePredict(run_options, core, request, response);
+    }
   }
-  if (use_saved_model_) {
-    return SavedModelPredict(run_options, core, request, response);
+  const tensorflow::uint64 predict_end_time = tensorflow::Env::Default()
+      ->NowMicros();
+  tensorflow::uint64 elapsed_time = 0;
+  if (predict_end_time > predict_start_time) {
+    elapsed_time = predict_end_time - predict_start_time;
+
   }
-  return SessionBundlePredict(run_options, core, request, response);
+  core->CreateMetricEvent("PredictMetric", predictionCount++,
+                          ServableState::ManagerState::kEnd, elapsed_time,
+                          status, request.model_spec());
+  return status;
 }
 
 }  // namespace serving

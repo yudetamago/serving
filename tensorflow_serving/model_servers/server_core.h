@@ -38,6 +38,7 @@ limitations under the License.
 #include "tensorflow_serving/core/source.h"
 #include "tensorflow_serving/core/source_adapter.h"
 #include "tensorflow_serving/core/storage_path.h"
+#include "tensorflow_serving/core/metrics_manager.h"
 #include "tensorflow_serving/sources/storage_path/file_system_storage_path_source.h"
 #include "tensorflow_serving/util/event_bus.h"
 #include "tensorflow_serving/util/optional.h"
@@ -148,6 +149,18 @@ class ServerCore : public Manager {
     // Callback to be called just before a servable is to be loaded. This will
     // called on the same manager load thread which starts the load.
     PreLoadHook pre_load_hook;
+
+    // Enable metric summary.
+    bool enable_metric_summary = false;
+
+    // Time interval between between each summary of metrics in seconds
+    int32 metric_summary_wait_seconds = 30;
+
+    // Define the target for publishing metrics.
+    string target_publishing_metric;
+
+    // Manager used for managing metrics.
+    std::unique_ptr<MetricsManager> metrics_manager;
   };
 
   virtual ~ServerCore() = default;
@@ -213,6 +226,17 @@ class ServerCore : public Manager {
              const LogMetadata& log_metadata) {
     return options_.server_request_logger->Log(request, response, log_metadata);
   }
+
+  void GetModelNameAndVersion(const ModelSpec& model_spec, string& model_name,
+                              int64& model_version) ;
+
+  // Create a metric event and publish it on the bus.
+  Status CreateMetricEvent(const string& event_name,
+                     const int64& event_number,
+                     const ServableState::ManagerState& event_state,
+                     const uint64& elapsed_predict_time, const Status& result_status,
+                     const ModelSpec& model_spec);
+
 
  protected:
   ServerCore(Options options);
@@ -345,6 +369,7 @@ class ServerCore : public Manager {
 
   std::shared_ptr<EventBus<ServableState>> servable_event_bus_;
   std::shared_ptr<ServableStateMonitor> servable_state_monitor_;
+  std::shared_ptr<MetricsManager> metrics_manager_;
   UniquePtrWithDeps<AspiredVersionsManager> manager_;
 
   // The most recent config supplied to ReloadConfig().

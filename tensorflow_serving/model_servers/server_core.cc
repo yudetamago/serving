@@ -236,6 +236,14 @@ Status ServerCore::Create(Options options,
         ServerRequestLogger::Create(nullptr, &options.server_request_logger));
   }
 
+  if (options.metrics_manager == nullptr) {
+    TF_RETURN_IF_ERROR(
+        MetricsManager::Create(options.target_publishing_metric,
+                              options.enable_metric_summary,
+                              options.metric_summary_wait_seconds,
+                              &options.metrics_manager));
+  }
+
   // We need to move the aspired_version_policy first because we will move the
   // server_core_config (which contains aspired_version_policy) below.
   std::unique_ptr<AspiredVersionPolicy> aspired_version_policy =
@@ -245,6 +253,50 @@ Status ServerCore::Create(Options options,
   TF_RETURN_IF_ERROR(
       (*server_core)->Initialize(std::move(aspired_version_policy)));
   return (*server_core)->ReloadConfig(model_server_config);
+}
+
+void ServerCore::GetModelNameAndVersion(const ModelSpec& model_spec,
+                                        string& model_name,
+                                        int64& model_version) {
+  model_name = model_spec.name();
+  if (model_spec.has_version()) {
+    model_version = model_spec.version().value();
+  } else {
+    ServableHandle<SessionBundle> bundle;
+    ServerCore::GetServableHandle(model_spec, &bundle);
+    model_version = bundle.id().version;
+  }
+}
+
+Status ServerCore::CreateMetricEvent(const string& event_name,
+                               const int64& event_version,
+                               const ServableState::ManagerState& event_state,
+                               const uint64& elapsed_predict_time,
+                               const Status& result_status,
+                               const ModelSpec& model_spec) {
+
+
+  //Create an event on servable_event_bus.
+  ServableState event_servable_state = {
+      ServableId { event_name, event_version }, event_state, Status::OK() };
+  string model_name;
+  int64 model_version;
+  ServerCore::GetModelNameAndVersion(model_spec, model_name, model_version);
+
+  // Monitoring the event
+  ServableStateMonitor::ServableStateNotifierFn notifier_fn = metrics_manager_.get()
+      ->CreateNotifier(elapsed_predict_time, result_status, model_name,
+                      model_version);
+  std::vector<ServableRequest> servables;
+  const ServableId specific_goal_state_id = { event_name, event_version };
+  servables.push_back(ServableRequest::FromId(specific_goal_state_id));
+  servable_state_monitor_.get()->NotifyWhenServablesReachState(servables,
+                                                               event_state,
+                                                               notifier_fn);
+
+  // Publish the event
+  servable_event_bus_.get()->Publish(event_servable_state);
+  return Status::OK();
 }
 
 // ************************************************************************
